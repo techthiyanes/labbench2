@@ -2,7 +2,7 @@ from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 
-from evals.evaluators import HybridEvaluator, extract_answer
+from evals.evaluators import HybridEvaluator, RewardFunctionEvaluator, extract_answer
 
 
 class TestExtractAnswer:
@@ -63,3 +63,34 @@ class TestHybridEvaluatorRouting:
 
         evaluator.llm_evaluator.evaluate.assert_called_once()
         evaluator.reward_evaluator.evaluate.assert_not_called()
+
+
+@pytest.mark.asyncio
+async def test_cloning_evaluator_accepts_decoded_validator_params(monkeypatch, tmp_path):
+    validator_params = {"enzyme_1": "BsaI", "edit_distance_threshold": 0.05}
+    reference_path = tmp_path / "question-id_assembled.fa"
+    reward = AsyncMock(return_value=(1.0, "ok"))
+    resolver = MagicMock(return_value=reference_path)
+    monkeypatch.setattr("evals.evaluators.cloning_reward", reward)
+    monkeypatch.setattr("evals.evaluators.resolve_file_path", resolver)
+    ctx = MagicMock(
+        metadata={
+            "tag": "cloning",
+            "id": "question-id",
+            "validator_params": validator_params,
+        },
+        inputs={"files_path": str(tmp_path)},
+        output="protocol",
+    )
+
+    result = await RewardFunctionEvaluator().evaluate(ctx)
+
+    resolver.assert_called_once_with("question-id_assembled.fa", None)
+    reward.assert_awaited_once_with(
+        answer="protocol",
+        base_dir=tmp_path,
+        reference_path=reference_path,
+        validator_params=validator_params,
+    )
+    assert result.value == 1.0
+    assert result.reason == "ok"
