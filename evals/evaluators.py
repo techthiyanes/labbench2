@@ -114,9 +114,11 @@ class RewardFunctionEvaluator(Evaluator):
 
             # Parse validator_params if present
             validator_params = None
-            validator_params_str = metadata.get("validator_params")
-            if validator_params_str:
-                validator_params = ast.literal_eval(validator_params_str)
+            validator_params_raw = metadata.get("validator_params")
+            if isinstance(validator_params_raw, str) and validator_params_raw:
+                validator_params = ast.literal_eval(validator_params_raw)
+            elif validator_params_raw:
+                validator_params = validator_params_raw
 
             score, reason = await cloning_reward(
                 answer=ctx.output,
